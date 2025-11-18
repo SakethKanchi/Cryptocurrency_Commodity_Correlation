@@ -1,0 +1,36 @@
+# R specific
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Rproj.user/
+
+# R Markdown
+*.Rmd
+!reports/*.Rmd
+*.html
+*.pdf
+!reports/*.pdf
+
+# Output files
+output/figures/*.png
+output/figures/*.pdf
+!output/figures/.gitkeep
+
+# Data files (uncomment if you don't want to track data)
+# data/raw/*
+# data/processed/*
+
+# Temporary files
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+

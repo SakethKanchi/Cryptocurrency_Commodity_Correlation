@@ -1,0 +1,458 @@
+---
+title: "Cryptocurrency-Commodity Correlation as a Market Regime Indicator"
+subtitle: "Progress Report"
+author: |
+  | Group 7
+  | Jhanvi Damwani, Saketh Kanchi, Ajith Shetty
+date: "November 2025"
+output:
+  pdf_document:
+    toc: false
+  html_document:
+    toc: false
+    theme: journal
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
+                      fig.width = 6, fig.height = 3.5, fig.align = "center",
+                      out.width = "\\textwidth", fig.pos = "!htbp")
+```
+
+```{r load-packages, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+library(scales)
+library(lubridate)
+```
+
+\newpage
+
+# Introduction
+
+Over the past decade, cryptocurrencies have transitioned from niche speculative instruments to macro-relevant financial assets with significant institutional adoption. Their interplay with traditional commodities, particularly gold and oil, offers valuable insights into global risk sentiment and portfolio diversification strategies. Gold has historically acted as a hedge against inflation and a store of value during market uncertainty, while oil reflects real economic activity and demand cycles.
+
+This project explores whether cryptocurrency-commodity correlations can act as market regime indicators. When correlations rise, markets may perceive crypto as a traditional risk asset, while weakening correlations could indicate diversification benefits or independent valuation trends. Recent events such as the COVID-19 crisis, the 2022 crypto winter, and the 2023 banking turmoil provide natural experiments to study these relationships under various market conditions.
+
+Understanding these dynamic relationships is significant for multiple stakeholders. For institutional investors, it informs portfolio construction and risk management decisions. For policymakers, it provides insights into whether cryptocurrencies pose systemic risks or serve as diversification tools. For the academic community, it contributes to the ongoing debate about whether cryptocurrencies are maturing into traditional asset classes or remain primarily speculative instruments.
+
+# Research Questions
+
+This study aims to answer the following research questions:
+
+**RQ1:** How do correlations between cryptocurrencies (Bitcoin and Ethereum) and commodities (gold and crude oil) vary across different market regimes (crisis periods vs. normal market conditions)?
+
+**RQ2:** Can changes in cryptocurrency-commodity correlations serve as indicators of market stress and regime shifts?
+
+**RQ3:** Do Bitcoin and Ethereum exhibit different correlation patterns with gold and oil, and what might explain these differences?
+
+**RQ4:** What correlation thresholds or patterns signal transitions between risk-on and risk-off market regimes?
+
+# Dataset Description
+
+## Data Source
+
+All data are retrieved from the Yahoo Finance API (<https://finance.yahoo.com>), which provides reliable historical price data for both cryptocurrencies and commodity futures. The dataset spans from January 1, 2020 to September 30, 2024, covering approximately 1,200 daily observations per asset. This timeframe captures multiple market regimes including the COVID-19 pandemic, bull markets, the 2022 monetary tightening cycle, and the 2023 banking crisis.
+
+## Assets and Tickers
+
+The following assets are included in the analysis:
+
+-   **Bitcoin**: BTC-USD (Bitcoin price in US dollars)
+-   **Ethereum**: ETH-USD (Ethereum price in US dollars)
+-   **Gold Futures**: GC=F (Gold futures price in USD per troy ounce)
+-   **Crude Oil Futures**: CL=F (WTI crude oil futures in USD per barrel)
+
+## Data Header and Feature Definitions
+
+The raw data from Yahoo Finance contains the following fields:
+
+| Field Name | Description                                             |
+|------------|---------------------------------------------------------|
+| Date       | Trading date in YYYY-MM-DD format                       |
+| Open       | Opening price for the trading day                       |
+| High       | Highest price during the trading day                    |
+| Low        | Lowest price during the trading day                     |
+| Close      | Closing price for the trading day                       |
+| Adj Close  | Adjusted closing price (accounts for splits, dividends) |
+| Volume     | Trading volume for the day                              |
+
+## Derived Features
+
+From the raw data, we create the following features for analysis:
+
+| Feature Name     | Definition                                           |
+|------------------|------------------------------------------------------|
+| BTC_Return       | Log return of Bitcoin = ln(Price_t / Price_t-1)      |
+| ETH_Return       | Log return of Ethereum = ln(Price_t / Price_t-1)     |
+| Gold_Return      | Log return of Gold futures = ln(Price_t / Price_t-1) |
+| Oil_Return       | Log return of Oil futures = ln(Price_t / Price_t-1)  |
+| Rolling_Corr_90d | 90-day rolling correlation between asset pairs       |
+| Volatility_30d   | 30-day rolling standard deviation of returns         |
+| Normalized_Price | Price normalized to base 100 at start date           |
+
+## Data Preprocessing Steps
+
+The following preprocessing steps are applied:
+
+1.  **Handle missing values**: Forward-fill is used for commodity weekend gaps (commodities don't trade on weekends while cryptocurrencies trade 24/7)
+2.  **Align trading calendars**: Merge data on common dates, handling the difference between crypto (24/7) and commodity markets (weekday only)
+3.  **Use adjusted closing prices**: All calculations use adjusted closing prices to account for corporate actions
+4.  **Calculate log returns**: Log returns are calculated to ensure stationarity for time series analysis
+5.  **Identify outliers**: Extreme price movements are documented during the analysis
+
+# Exploratory Data Analysis
+
+## Summary Statistics
+
+```{r load-data, echo=FALSE}
+# Load processed data
+combined_data <- read.csv("../data/processed/combined_data.csv", stringsAsFactors = FALSE)
+combined_data$Date <- as.Date(combined_data$Date)
+
+# Load summary statistics
+summary_stats <- read.csv("../output/summary_statistics.csv", stringsAsFactors = FALSE)
+```
+
+The following table presents descriptive statistics for daily returns of all four assets:
+
+```{r summary-table, echo=FALSE}
+kable(summary_stats, 
+      col.names = c("Asset", "Mean Return (%)", "Std Dev (%)", "Skewness", "Kurtosis"),
+      caption = "Summary Statistics for Daily Returns",
+      digits = 2)
+```
+
+### Key Observations from Summary Statistics
+
+-   **Volatility Hierarchy**: Cryptocurrencies (BTC: `r summary_stats$Std_Dev[1]`%, ETH: `r summary_stats$Std_Dev[2]`%) exhibit significantly higher volatility than traditional commodities (Gold: `r summary_stats$Std_Dev[3]`%, Oil: `r summary_stats$Std_Dev[4]`%). This suggests higher risk-return profiles for digital assets.
+
+-   **Returns**: Both cryptocurrencies show positive average daily returns (BTC: `r summary_stats$Mean_Return[1]`%, ETH: `r summary_stats$Mean_Return[2]`%), while gold remains stable (`r summary_stats$Mean_Return[3]`%) and oil slightly negative (`r summary_stats$Mean_Return[4]`%) over the period.
+
+-   **Fat Tails**: All assets exhibit excess kurtosis (\>3), indicating fat-tailed distributions with more extreme events than a normal distribution would predict. Oil shows particularly high kurtosis (`r summary_stats$Kurtosis[4]`) due to the 2020 price collapse.
+
+-   **Asymmetry**: Negative skewness across all assets suggests larger and more frequent downside moves compared to upside moves, a characteristic of financial assets during periods of market stress.
+
+## Correlation Analysis
+
+```{r correlation-matrix, echo=FALSE}
+corr_matrix <- read.csv("../output/correlation_matrix.csv", row.names = 1)
+```
+
+Static correlation matrix for the full sample period (January 2020 - September 2024):
+
+```{r corr-table, echo=FALSE}
+kable(corr_matrix, 
+      caption = "Correlation Matrix (Full Sample Period)",
+      digits = 2)
+```
+
+### Relationships Between Features
+
+-   **Strong Crypto-Crypto Correlation**: Bitcoin and Ethereum show high correlation (`r round(corr_matrix[1,2], 2)`), suggesting they respond similarly to market forces and may share common drivers.
+
+-   **Weak Crypto-Commodity Correlations**: Both cryptocurrencies show low correlations with gold (BTC: `r round(corr_matrix[1,3], 2)`, ETH: `r round(corr_matrix[2,3], 2)`) and oil (BTC: `r round(corr_matrix[1,4], 2)`, ETH: `r round(corr_matrix[2,4], 2)`) over the full sample. This suggests potential diversification benefits on average.
+
+-   **Traditional Commodity Relationship**: Gold and oil show modest positive correlation (`r round(corr_matrix[3,4], 2)`), consistent with their roles as inflation-sensitive commodities.
+
+-   **Time-Varying Patterns**: These static correlations mask important time-varying dynamics. Preliminary rolling correlation analysis shows that BTC-Gold correlation ranges from approximately `r round(min(combined_data$Rolling_Corr_BTC_Gold_90d, na.rm = TRUE), 2)` to `r round(max(combined_data$Rolling_Corr_BTC_Gold_90d, na.rm = TRUE), 2)` across different periods, suggesting regime-dependent behavior that warrants further investigation.
+
+## Visualizations
+
+```{r define-events, echo=FALSE, include=FALSE}
+# Define event dates for marking (used in multiple figures)
+event_dates <- data.frame(
+  Event = c("COVID-19", "Fed", "FTX", "Banking"),
+  Date = as.Date(c("2020-03-15", "2022-03-16", "2022-11-11", "2023-03-10"))
+)
+```
+
+### Figure 1: Normalized Price Time Series
+
+```{r fig1, echo=FALSE, fig.cap="Time series of normalized prices (base = 100) showing the divergent price evolution of crypto assets versus commodities", fig.width=6, fig.height=3.5}
+fig1_data <- combined_data %>%
+  select(Date, BTC_Normalized, ETH_Normalized, Gold_Normalized, Oil_Normalized) %>%
+  tidyr::pivot_longer(cols = -Date, names_to = "Asset", values_to = "Normalized_Price") %>%
+  mutate(Asset = case_when(
+    Asset == "BTC_Normalized" ~ "Bitcoin",
+    Asset == "ETH_Normalized" ~ "Ethereum",
+    Asset == "Gold_Normalized" ~ "Gold",
+    Asset == "Oil_Normalized" ~ "Crude Oil"
+  ))
+
+ggplot(fig1_data, aes(x = Date, y = Normalized_Price, color = Asset)) +
+  geom_line(linewidth = 0.6) +
+  labs(
+    x = "Date",
+    y = "Normalized Price (Base = 100)",
+    color = "Asset"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    legend.position = "bottom",
+    legend.text = element_text(size = 8),
+    axis.text = element_text(size = 8),
+    axis.title = element_text(size = 9)
+  ) +
+  scale_color_manual(values = c("Bitcoin" = "#F7931A", "Ethereum" = "#627EEA", 
+                                "Gold" = "#FFD700", "Crude Oil" = "#000000"))
+```
+
+### Figure 2: Rolling BTC-Gold Correlation
+
+```{r fig2, echo=FALSE, fig.cap="Rolling 90-day correlation between BTC and Gold, with event markers for COVID crash, Fed policy changes, and major crypto events", fig.width=6, fig.height=3.5}
+ggplot(combined_data, aes(x = Date, y = Rolling_Corr_BTC_Gold_90d)) +
+  geom_line(color = "#F7931A", linewidth = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(data = event_dates, aes(xintercept = Date), 
+             linetype = "dashed", color = "red", alpha = 0.5) +
+  geom_text(data = event_dates, aes(x = Date, y = 0.55, label = Event),
+            angle = 90, hjust = -0.1, size = 2.5, color = "red") +
+  labs(
+    x = "Date",
+    y = "Rolling 90-Day Correlation"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 8),
+    axis.title = element_text(size = 9)
+  ) +
+  ylim(-0.5, 0.7)
+```
+
+### Figure 3: Rolling BTC-Oil Correlation
+
+```{r fig3, echo=FALSE, fig.cap="Rolling 90-day correlation between BTC and Oil, highlighting periods of coupling and decoupling", fig.width=6, fig.height=3.5}
+ggplot(combined_data, aes(x = Date, y = Rolling_Corr_BTC_Oil_90d)) +
+  geom_line(color = "#000000", linewidth = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(data = event_dates, aes(xintercept = Date), 
+             linetype = "dashed", color = "red", alpha = 0.5) +
+  geom_text(data = event_dates, aes(x = Date, y = 0.55, label = Event),
+            angle = 90, hjust = -0.1, size = 2.5, color = "red") +
+  labs(
+    x = "Date",
+    y = "Rolling 90-Day Correlation"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 8),
+    axis.title = element_text(size = 9)
+  ) +
+  ylim(-0.5, 0.7)
+```
+
+### Figure 4: Return Distributions
+
+```{r fig4, echo=FALSE, fig.cap="Distribution histograms of daily returns for all four assets, illustrating fat tails and asymmetry", fig.width=6, fig.height=4.5}
+returns_long <- combined_data %>%
+  select(Date, BTC_Return, ETH_Return, Gold_Return, Oil_Return) %>%
+  tidyr::pivot_longer(cols = -Date, names_to = "Asset", values_to = "Return") %>%
+  filter(!is.na(Return)) %>%
+  mutate(Asset = case_when(
+    Asset == "BTC_Return" ~ "Bitcoin",
+    Asset == "ETH_Return" ~ "Ethereum",
+    Asset == "Gold_Return" ~ "Gold",
+    Asset == "Oil_Return" ~ "Crude Oil"
+  ))
+
+ggplot(returns_long, aes(x = Return * 100, fill = Asset)) +
+  geom_histogram(alpha = 0.7, bins = 40) +
+  facet_wrap(~ Asset, scales = "free", ncol = 2) +
+  labs(
+    x = "Daily Return (%)",
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 7),
+    axis.title = element_text(size = 9),
+    strip.text = element_text(size = 8)
+  ) +
+  scale_fill_manual(values = c("Bitcoin" = "#F7931A", "Ethereum" = "#627EEA", 
+                               "Gold" = "#FFD700", "Crude Oil" = "#000000"))
+```
+
+### Figure 5: Correlation Evolution Heatmap
+
+```{r fig5, echo=FALSE, fig.cap="Heatmap showing the evolution of all crypto-commodity correlations over time", fig.width=6, fig.height=3.5}
+combined_data$Year <- lubridate::year(combined_data$Date)
+combined_data$Quarter <- lubridate::quarter(combined_data$Date)
+
+quarterly_corr <- combined_data %>%
+  filter(!is.na(Rolling_Corr_BTC_Gold_90d)) %>%
+  group_by(Year, Quarter) %>%
+  summarise(
+    BTC_Gold = mean(Rolling_Corr_BTC_Gold_90d, na.rm = TRUE),
+    BTC_Oil = mean(Rolling_Corr_BTC_Oil_90d, na.rm = TRUE),
+    ETH_Gold = mean(Rolling_Corr_ETH_Gold_90d, na.rm = TRUE),
+    ETH_Oil = mean(Rolling_Corr_ETH_Oil_90d, na.rm = TRUE),
+    BTC_ETH = mean(Rolling_Corr_BTC_ETH_90d, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Period = paste0(Year, "-Q", Quarter)) %>%
+  select(Period, BTC_Gold, BTC_Oil, ETH_Gold, ETH_Oil, BTC_ETH) %>%
+  tidyr::pivot_longer(cols = -Period, names_to = "Pair", values_to = "Correlation")
+
+ggplot(quarterly_corr, aes(x = Period, y = Pair, fill = Correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", 
+                       midpoint = 0, limits = c(-0.5, 0.7)) +
+  labs(
+    x = "Time Period",
+    y = "Asset Pair",
+    fill = "Correlation"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(size = 9),
+    legend.text = element_text(size = 7),
+    legend.title = element_text(size = 8)
+  )
+```
+
+# Analysis Done So Far
+
+## Methods Implemented
+
+### 1. Rolling Correlation Analysis
+
+We have implemented rolling correlation calculations for multiple window sizes (30, 60, 90, and 180 days) to capture dynamic relationships between asset pairs. The 90-day window serves as our primary measure, balancing statistical stability with responsiveness to regime changes. We calculate correlations for all asset pairs:
+
+-   BTC-Gold and BTC-Oil
+-   ETH-Gold and ETH-Oil\
+-   BTC-ETH (for comparison)
+
+### 2. Alternative Correlation Measures
+
+To test robustness, we have also calculated Spearman rank correlations, which are less sensitive to outliers than Pearson correlations. This provides additional validation of our findings.
+
+### 3. Statistical Testing
+
+We have performed Augmented Dickey-Fuller (ADF) tests to verify stationarity of return series, which is a prerequisite for reliable correlation analysis.
+
+```{r adf-results, echo=FALSE}
+adf_results <- read.csv("../output/adf_test_results.csv", stringsAsFactors = FALSE)
+kable(adf_results, 
+      col.names = c("Asset", "Test Statistic", "P-Value", "Is Stationary"),
+      caption = "Augmented Dickey-Fuller Stationarity Test Results",
+      digits = 4)
+```
+
+### 4. Preliminary Regime Identification
+
+We have implemented a threshold-based classification system to identify different correlation regimes:
+
+-   High Positive (\>0.3)
+-   Moderate Positive (0.1 to 0.3)
+-   Low (-0.1 to 0.1)
+-   Moderate Negative (-0.3 to -0.1)
+-   High Negative (\<-0.3)
+
+## Parameters Estimated
+
+-   **Rolling Correlations**: Calculated for windows of 30, 60, 90, and 180 days
+-   **Volatility Measures**: 30-day rolling standard deviation of returns
+-   **Summary Statistics**: Mean, standard deviation, skewness, and kurtosis for all return series
+-   **Correlation Matrices**: Static correlations for the full sample period
+
+## Results and Findings
+
+### Key Findings
+
+1.  **Time-Varying Correlations**: Rolling correlations show significant variation over time, with BTC-Gold correlation ranging from approximately `r round(min(combined_data$Rolling_Corr_BTC_Gold_90d, na.rm = TRUE), 2)` to `r round(max(combined_data$Rolling_Corr_BTC_Gold_90d, na.rm = TRUE), 2)`, confirming regime-dependent behavior.
+
+2.  **Crypto-Commodity Relationships**: On average, correlations between cryptocurrencies and commodities are low, suggesting diversification benefits. However, these correlations increase during certain periods, particularly during market stress.
+
+3.  **Volatility Differences**: Cryptocurrencies exhibit significantly higher volatility than commodities, with Bitcoin showing `r summary_stats$Std_Dev[1]`% daily volatility compared to Gold's `r summary_stats$Std_Dev[3]`%.
+
+4.  **Stationarity**: All return series are stationary based on ADF tests, validating the use of correlation analysis.
+
+5.  **Regime Patterns**: Preliminary analysis shows distinct periods of high and low correlation, which may correspond to different market regimes.
+
+# Issues Encountered
+
+During the analysis, we encountered the following issues:
+
+1.  **Trading Calendar Alignment**: Cryptocurrencies trade 24/7 while commodities trade only on weekdays. This required careful handling of missing values and alignment of trading calendars. We addressed this by forward-filling weekend values for commodities.
+
+2.  **Data Availability**: Some dates may have missing data due to market holidays or data feed issues. We implemented forward-fill methods to handle these gaps while preserving the integrity of the analysis.
+
+3.  **API Rate Limiting**: When fetching data from Yahoo Finance, we encountered occasional rate limiting. We implemented retry logic with delays to handle these situations gracefully.
+
+4.  **Rolling Window Edge Cases**: At the beginning of the time series, rolling correlations cannot be calculated until sufficient data points are available. We handle this by setting initial values to NA and only calculating correlations once the window is filled.
+
+5.  **Computational Efficiency**: Calculating rolling correlations for multiple windows and asset pairs can be computationally intensive. We optimized the code to calculate correlations efficiently while maintaining accuracy.
+
+# Next Steps
+
+To complete the project, the following steps are required:
+
+1.  **Advanced Regime Detection**: Implement more sophisticated regime detection methods:
+
+    -   Change-point detection algorithms to identify structural breaks
+    -   Clustering analysis (K-means or hierarchical) on correlation vectors
+    -   Machine learning approaches for regime classification
+
+2.  **Event Study Analysis**: Conduct detailed event studies around major market events:
+
+    -   COVID-19 market crash (March 2020)
+    -   Federal Reserve policy announcements (2022-2023)
+    -   Major crypto events (FTX collapse, ETF approvals)
+    -   Geopolitical events (Ukraine conflict, Middle East tensions)
+    -   Analyze correlation behavior using ±30 day event windows
+
+3.  **Comparative Analysis**: Deep dive into differences between Bitcoin and Ethereum:
+
+    -   Statistical tests for significant differences in correlation patterns
+    -   Analysis of potential drivers (use case differences, market cap, etc.)
+
+4.  **Advanced Statistical Testing**:
+
+    -   Correlation stability tests across identified regimes
+    -   Granger causality tests to examine predictive relationships
+    -   Cointegration tests if applicable
+
+5.  **Threshold Analysis**: Determine specific correlation thresholds that signal transitions between risk-on and risk-off regimes, potentially using receiver operating characteristic (ROC) analysis.
+
+6.  **Final Report**: Compile all findings into a comprehensive final report with:
+
+    -   Complete analysis of all research questions
+    -   Policy and investment implications
+    -   Limitations and future research directions
+
+# References
+
+## Academic Literature
+
+Baur, D. G., & Lucey, B. M. (2010). Is gold a hedge or a safe haven? An analysis of stocks, bonds and gold. *The Financial Review*, 45(2), 217-229.
+
+Bouri, E., Molnár, P., Azzi, G., Roubaud, D., & Hagfors, L. I. (2017). On the hedge and safe haven properties of Bitcoin: Is it really more than a diversifier? *Finance Research Letters*, 20, 192-198.
+
+Conlon, T., & McGee, R. (2020). Safe haven or risky hazard? Bitcoin during the COVID-19 bear market. *Finance Research Letters*, 35, 101607.
+
+Corbet, S., Meegan, A., Larkin, C., Lucey, B., & Yarovaya, L. (2018). Exploring the dynamic relationships between cryptocurrencies and other financial assets. *Economics Letters*, 165, 28-34.
+
+Klein, T., Thu, H. P., & Walther, T. (2018). Bitcoin is not the New Gold – A comparison of volatility, correlation, and portfolio performance. *International Review of Financial Analysis*, 59, 105-116.
+
+## Data Sources
+
+Yahoo Finance API. (2024). Historical market data. Retrieved from <https://finance.yahoo.com>
+
+Federal Reserve Economic Data (FRED). (2024). Federal Reserve Bank of St. Louis. Retrieved from <https://fred.stlouisfed.org/>
+
+## Software and Tools
+
+Ryan, J. A., & Ulrich, J. M. (2024). quantmod: Quantitative Financial Modelling Framework. R package. <https://www.quantmod.com/>
+
+Dancho, M., & Vaughan, D. (2024). tidyquant: Tidy Quantitative Financial Analysis. R package. <https://business-science.github.io/tidyquant/>
+
+Wickham, H. (2016). ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York.
+
+Peterson, B. G., & Carl, P. (2024). PerformanceAnalytics: Econometric Tools for Performance and Risk Analysis. R package.

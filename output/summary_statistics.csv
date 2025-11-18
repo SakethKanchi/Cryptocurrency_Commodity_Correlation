@@ -1,0 +1,5 @@
+"Asset","Mean_Return","Std_Dev","Skewness","Kurtosis"
+"Bitcoin",0.13,3.45,-1.43,21.49
+"Ethereum",0.17,4.46,-1.28,17.26
+"Gold",0.03,0.85,-0.28,6.74
+"Crude Oil",0.04,2.84,0.07,35.34
