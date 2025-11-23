@@ -4,6 +4,7 @@
 
 # Load required libraries
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(PerformanceAnalytics)
 library(corrplot)
@@ -108,6 +109,7 @@ cat("  Creating Figure 1: Normalized Price Time Series...\n")
 fig1_data <- combined_data %>%
   select(Date, BTC_Normalized, ETH_Normalized, Gold_Normalized, Oil_Normalized) %>%
   pivot_longer(cols = -Date, names_to = "Asset", values_to = "Normalized_Price") %>%
+  filter(!is.na(Normalized_Price) & is.finite(Normalized_Price)) %>%
   mutate(Asset = case_when(
     Asset == "BTC_Normalized" ~ "Bitcoin",
     Asset == "ETH_Normalized" ~ "Ethereum",
@@ -138,7 +140,8 @@ ggsave("output/figures/Figure1_Normalized_Prices.png", fig1, width = 12, height 
 # Figure 2: Rolling 90-day BTC-Gold correlation with event markers
 cat("  Creating Figure 2: Rolling BTC-Gold Correlation...\n")
 
-fig2 <- ggplot(combined_data, aes(x = Date, y = Rolling_Corr_BTC_Gold_90d)) +
+fig2 <- ggplot(combined_data %>% filter(!is.na(Rolling_Corr_BTC_Gold_90d) & is.finite(Rolling_Corr_BTC_Gold_90d)), 
+               aes(x = Date, y = Rolling_Corr_BTC_Gold_90d)) +
   geom_line(color = "#F7931A", linewidth = 0.8) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
   geom_vline(data = event_dates, aes(xintercept = Date), 
@@ -160,7 +163,8 @@ ggsave("output/figures/Figure2_BTC_Gold_Correlation.png", fig2, width = 12, heig
 # Figure 3: Rolling 90-day BTC-Oil correlation
 cat("  Creating Figure 3: Rolling BTC-Oil Correlation...\n")
 
-fig3 <- ggplot(combined_data, aes(x = Date, y = Rolling_Corr_BTC_Oil_90d)) +
+fig3 <- ggplot(combined_data %>% filter(!is.na(Rolling_Corr_BTC_Oil_90d) & is.finite(Rolling_Corr_BTC_Oil_90d)), 
+               aes(x = Date, y = Rolling_Corr_BTC_Oil_90d)) +
   geom_line(color = "#000000", linewidth = 0.8) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
   geom_vline(data = event_dates, aes(xintercept = Date), 

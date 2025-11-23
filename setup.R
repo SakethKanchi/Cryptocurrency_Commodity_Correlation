@@ -3,26 +3,28 @@
 
 # Install required packages if not already installed
 required_packages <- c(
-  "quantmod",           # Yahoo Finance data retrieval
-  "tidyquant",          # Tidy financial workflows
+  "quantmod", # Yahoo Finance data retrieval
+  "tidyquant", # Tidy financial workflows
   "PerformanceAnalytics", # Correlation and performance metrics
-  "ggplot2",            # Data visualization
-  "dplyr",              # Data manipulation
-  "tidyr",              # Data tidying
-  "zoo",                # Time series data manipulation
-  "xts",                # Time series data manipulation
-  "knitr",              # Report generation
-  "rmarkdown",          # R Markdown rendering
-  "lubridate",          # Date handling
-  "corrplot",           # Correlation plots
-  "gridExtra",          # Arrange multiple plots
-  "scales",             # Scale functions for plots
-  "tseries"             # Time series analysis (ADF tests)
+  "ggplot2", # Data visualization
+  "dplyr", # Data manipulation
+  "tidyr", # Data tidying
+  "zoo", # Time series data manipulation
+  "xts", # Time series data manipulation
+  "knitr", # Report generation
+  "rmarkdown", # R Markdown rendering
+  "lubridate", # Date handling
+  "corrplot", # Correlation plots
+  "gridExtra", # Arrange multiple plots
+  "scales", # Scale functions for plots
+  "tseries" # Time series analysis (ADF tests)
 )
 
 # Install missing packages
-new_packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
-if(length(new_packages)) {
+new_packages <- required_packages[
+  !(required_packages %in% installed.packages()[, "Package"])
+]
+if (length(new_packages)) {
   install.packages(new_packages, repos = "https://cran.rstudio.com/")
 }
 
@@ -65,4 +67,3 @@ if (!dir.exists("reports")) {
 
 cat("Setup complete! All required packages loaded.\n")
 cat("Project directories created.\n")
-

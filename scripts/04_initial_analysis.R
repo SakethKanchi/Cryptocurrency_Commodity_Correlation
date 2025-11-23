@@ -4,6 +4,7 @@
 
 # Load required libraries
 library(dplyr)
+library(tidyr)
 library(zoo)
 library(ggplot2)
 library(tseries)  # For ADF tests
@@ -31,6 +32,7 @@ cat("Loaded processed data:", nrow(combined_data), "observations\n\n")
 cat("Calculating rolling correlations for multiple windows...\n")
 
 # Function to calculate rolling correlation for different windows
+# Note: This is similar to calc_rolling_corr in preprocessing but uses adaptive threshold
 calc_rolling_corr_window <- function(x, y, window) {
   n <- length(x)
   corr <- rep(NA, n)
@@ -40,6 +42,7 @@ calc_rolling_corr_window <- function(x, y, window) {
     window_y <- y[(i-window+1):i]
     
     valid <- !is.na(window_x) & !is.na(window_y)
+    # Use adaptive threshold: require at least 30 observations or 1/3 of window
     if(sum(valid) >= min(30, window/3)) {
       corr[i] <- cor(window_x[valid], window_y[valid], use = "complete.obs")
     }
@@ -118,7 +121,7 @@ returns_data <- combined_data %>%
 adf_results <- data.frame(
   Asset = character(),
   Test_Statistic = numeric(),
-  P_Value = numeric(),
+  P_Value = character(),
   Is_Stationary = character(),
   stringsAsFactors = FALSE
 )
@@ -128,20 +131,29 @@ for(asset in c("BTC_Return", "ETH_Return", "Gold_Return", "Oil_Return")) {
   returns <- returns[!is.na(returns)]
   
   tryCatch({
-    adf_test <- adf.test(returns)
+    # Suppress warnings about p-value being smaller than printed
+    adf_test <- suppressWarnings(adf.test(returns))
+    
+    # Extract p-value, handling very small p-values
+    p_val <- adf_test$p.value
+    if(p_val < 0.001) {
+      p_val_display <- "< 0.001"
+    } else {
+      p_val_display <- round(p_val, 4)
+    }
     
     adf_results <- rbind(adf_results, data.frame(
       Asset = asset,
       Test_Statistic = round(adf_test$statistic, 4),
-      P_Value = round(adf_test$p.value, 4),
-      Is_Stationary = ifelse(adf_test$p.value < 0.05, "Yes", "No"),
+      P_Value = ifelse(p_val < 0.001, "< 0.001", round(p_val, 4)),
+      Is_Stationary = ifelse(p_val < 0.05, "Yes", "No"),
       stringsAsFactors = FALSE
     ))
     
     cat(asset, ":\n")
     cat("  ADF Statistic:", round(adf_test$statistic, 4), "\n")
-    cat("  P-value:", round(adf_test$p.value, 4), "\n")
-    cat("  Stationary:", ifelse(adf_test$p.value < 0.05, "Yes", "No"), "\n\n")
+    cat("  P-value:", p_val_display, "\n")
+    cat("  Stationary:", ifelse(p_val < 0.05, "Yes", "No"), "\n\n")
     
   }, error = function(e) {
     cat("  Error testing", asset, ":", e$message, "\n\n")

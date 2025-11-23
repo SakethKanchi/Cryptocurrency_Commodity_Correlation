@@ -48,11 +48,23 @@ preprocess_asset <- function(df, asset_name, is_crypto = FALSE) {
   # Remove any remaining NA rows
   df <- df[!is.na(df$Price), ]
   
+  # Remove zero or negative prices (invalid for log transformation)
+  invalid_prices <- sum(df$Price <= 0, na.rm = TRUE)
+  if(invalid_prices > 0) {
+    cat("  Warning: Removing", invalid_prices, "rows with zero or negative prices\n")
+    df <- df[df$Price > 0, ]
+  }
+  
   # Sort by date
   df <- df %>% arrange(Date)
   
   # Calculate log returns: ln(Price_t / Price_t-1)
-  df$Return <- c(NA, diff(log(df$Price)))
+  # Only calculate if we have valid prices
+  if(nrow(df) > 0 && all(df$Price > 0, na.rm = TRUE)) {
+    df$Return <- c(NA, diff(log(df$Price)))
+  } else {
+    stop(paste("Error: No valid prices found for", asset_name))
+  }
   
   # Calculate normalized price (base = 100 at first date)
   first_price <- df$Price[1]
@@ -123,6 +135,7 @@ cat("Date range:", format(min(combined_data$Date)), "to", format(max(combined_da
 cat("Calculating rolling correlations...\n")
 
 # Function to calculate rolling correlation
+# This function is used for initial 90-day correlations in preprocessing
 calc_rolling_corr <- function(x, y, window = 90) {
   n <- length(x)
   corr <- rep(NA, n)
