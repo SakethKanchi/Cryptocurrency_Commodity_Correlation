@@ -3,7 +3,7 @@
 **Course:** FA-582  
 **Semester:** Fall 2025  
 **Group:** Group 7  
-**Members:** Jhanvi Damwani, Saketh Kanchi, Ajith Gangishetty
+**Members:** Jhanvi Damwani, Saketh Kanchi, Ajith Shetty
 
 ## Project Overview
 

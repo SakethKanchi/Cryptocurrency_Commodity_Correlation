@@ -1,0 +1,5 @@
+"Asset","Test_Statistic","P_Value","Is_Stationary"
+"BTC_Return",-10.9953,0.01,"Yes"
+"ETH_Return",-11.0572,0.01,"Yes"
+"Gold_Return",-12.2271,0.01,"Yes"
+"Oil_Return",-10.4832,0.01,"Yes"
