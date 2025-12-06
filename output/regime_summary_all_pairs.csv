@@ -1,0 +1,21 @@
+"Pair","Regime","Count","Percentage","Mean_Correlation"
+"BTC_Gold","High Negative",89,5.13,NA
+"BTC_Gold","High Positive",225,12.98,0.392069998158732
+"BTC_Gold","Low",606,34.95,0.00718667900010247
+"BTC_Gold","Moderate Negative",228,13.15,-0.161572198898963
+"BTC_Gold","Moderate Positive",586,33.79,0.194992051890801
+"BTC_Oil","High Negative",89,5.13,NA
+"BTC_Oil","High Positive",149,8.59,0.321709135673311
+"BTC_Oil","Low",760,43.83,0.0118950264295119
+"BTC_Oil","Moderate Negative",211,12.17,-0.176023352166308
+"BTC_Oil","Moderate Positive",525,30.28,0.184642705221922
+"ETH_Gold","High Negative",89,5.13,NA
+"ETH_Gold","High Positive",78,4.5,0.333559747367388
+"ETH_Gold","Low",631,36.39,0.0153689295695519
+"ETH_Gold","Moderate Negative",76,4.38,-0.169129515814818
+"ETH_Gold","Moderate Positive",860,49.6,0.186173725239601
+"ETH_Oil","High Negative",89,5.13,NA
+"ETH_Oil","High Positive",53,3.06,0.328149625591472
+"ETH_Oil","Low",842,48.56,0.0168077307114974
+"ETH_Oil","Moderate Negative",149,8.59,-0.167483803734035
+"ETH_Oil","Moderate Positive",601,34.66,0.169492629484289

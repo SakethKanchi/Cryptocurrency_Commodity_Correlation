@@ -194,53 +194,191 @@ print(round(corr_summary, 3))
 write.csv(corr_summary, file = "output/rolling_correlation_summary.csv", row.names = FALSE)
 
 # ============================================================================
-# 5. Preliminary Regime Identification
+# 5. Correlation Significance Tests
 # ============================================================================
-cat("\n=== Preliminary Regime Identification ===\n")
+cat("\n=== Correlation Significance Tests ===\n")
+cat("Testing H0: correlation = 0 vs Ha: correlation ≠ 0\n\n")
 
-# Simple threshold-based classification
-# Define regimes based on correlation levels
+# Function to calculate rolling correlation with p-values
+calc_rolling_corr_with_pvalue <- function(x, y, window = 90) {
+  n <- length(x)
+  corr <- rep(NA, n)
+  pval <- rep(NA, n)
+  
+  for(i in window:n) {
+    window_x <- x[(i-window+1):i]
+    window_y <- y[(i-window+1):i]
+    
+    valid <- !is.na(window_x) & !is.na(window_y)
+    if(sum(valid) >= 30) {
+      tryCatch({
+        test_result <- cor.test(window_x[valid], window_y[valid], 
+                                alternative = "two.sided", method = "pearson")
+        corr[i] <- test_result$estimate
+        pval[i] <- test_result$p.value
+      }, error = function(e) {
+        # If test fails, just calculate correlation
+        corr[i] <- cor(window_x[valid], window_y[valid], use = "complete.obs")
+      })
+    }
+  }
+  
+  return(list(correlation = corr, pvalue = pval))
+}
+
+# Calculate rolling correlations with p-values for all pairs
+cat("Calculating rolling correlations with significance tests (90-day window)...\n")
+
+pairs <- list(
+  list(name = "BTC_Gold", x = combined_data$BTC_Return, y = combined_data$Gold_Return),
+  list(name = "BTC_Oil", x = combined_data$BTC_Return, y = combined_data$Oil_Return),
+  list(name = "ETH_Gold", x = combined_data$ETH_Return, y = combined_data$Gold_Return),
+  list(name = "ETH_Oil", x = combined_data$ETH_Return, y = combined_data$Oil_Return)
+)
+
+corr_significance_results <- data.frame(
+  Pair = character(),
+  Mean_Correlation = numeric(),
+  Mean_PValue = numeric(),
+  Significant_Periods = numeric(),
+  Total_Periods = numeric(),
+  Percent_Significant = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for(pair in pairs) {
+  result <- calc_rolling_corr_with_pvalue(pair$x, pair$y, window = 90)
+  
+  # Store p-values
+  combined_data[[paste0("Rolling_Corr_", pair$name, "_90d_PValue")]] <- result$pvalue
+  
+  # Calculate summary statistics
+  valid_pvals <- !is.na(result$pvalue)
+  significant <- sum(result$pvalue[valid_pvals] < 0.05, na.rm = TRUE)
+  total <- sum(valid_pvals)
+  
+  corr_significance_results <- rbind(corr_significance_results, data.frame(
+    Pair = pair$name,
+    Mean_Correlation = mean(result$correlation[valid_pvals], na.rm = TRUE),
+    Mean_PValue = mean(result$pvalue[valid_pvals], na.rm = TRUE),
+    Significant_Periods = significant,
+    Total_Periods = total,
+    Percent_Significant = round(significant / total * 100, 2),
+    stringsAsFactors = FALSE
+  ))
+  
+  cat(pair$name, ":\n")
+  cat("  Mean correlation:", round(mean(result$correlation[valid_pvals], na.rm = TRUE), 4), "\n")
+  cat("  Mean p-value:", round(mean(result$pvalue[valid_pvals], na.rm = TRUE), 4), "\n")
+  cat("  Significant periods (p < 0.05):", significant, "out of", total, 
+      "(", round(significant / total * 100, 2), "%)\n\n")
+}
+
+write.csv(corr_significance_results, file = "output/correlation_significance_results.csv", row.names = FALSE)
+
+# ============================================================================
+# 6. Regime Identification for All Pairs
+# ============================================================================
+cat("\n=== Regime Identification for All Pairs ===\n")
+
+# Threshold Justification:
+# - High Positive (>0.3): Strong positive relationship, indicates coupling during risk-on periods
+#   Based on financial literature, correlations >0.3 are considered moderate to strong
+# - Moderate Positive (0.1-0.3): Weak to moderate positive relationship
+# - Low (-0.1 to 0.1): Near-zero correlation, independent movement
+# - Moderate Negative (-0.3 to -0.1): Weak to moderate negative relationship
+# - High Negative (<-0.3): Strong negative relationship, indicates decoupling or hedging
+# These thresholds are symmetric around zero and align with standard correlation interpretation
+# in finance literature (e.g., Bodie, Kane, Marcus - Investments textbook)
+
+cat("\nThreshold Justification:\n")
+cat("- High Positive (>0.3): Strong positive relationship, risk-on coupling\n")
+cat("- Moderate Positive (0.1-0.3): Weak to moderate positive relationship\n")
+cat("- Low (-0.1 to 0.1): Near-zero correlation, independent movement\n")
+cat("- Moderate Negative (-0.3 to -0.1): Weak to moderate negative relationship\n")
+cat("- High Negative (<-0.3): Strong negative relationship, decoupling/hedging\n")
+cat("Thresholds are symmetric and align with standard finance literature.\n\n")
+
+# Define regime classification function
+classify_regime <- function(corr) {
+  case_when(
+    corr > 0.3 ~ "High Positive",
+    corr > 0.1 ~ "Moderate Positive",
+    corr > -0.1 ~ "Low",
+    corr > -0.3 ~ "Moderate Negative",
+    TRUE ~ "High Negative"
+  )
+}
+
+# Apply regime classification to all pairs
 combined_data <- combined_data %>%
   mutate(
-    BTC_Gold_Regime = case_when(
-      Rolling_Corr_BTC_Gold_90d > 0.3 ~ "High Positive",
-      Rolling_Corr_BTC_Gold_90d > 0.1 ~ "Moderate Positive",
-      Rolling_Corr_BTC_Gold_90d > -0.1 ~ "Low",
-      Rolling_Corr_BTC_Gold_90d > -0.3 ~ "Moderate Negative",
-      TRUE ~ "High Negative"
-    ),
-    BTC_Oil_Regime = case_when(
-      Rolling_Corr_BTC_Oil_90d > 0.3 ~ "High Positive",
-      Rolling_Corr_BTC_Oil_90d > 0.1 ~ "Moderate Positive",
-      Rolling_Corr_BTC_Oil_90d > -0.1 ~ "Low",
-      Rolling_Corr_BTC_Oil_90d > -0.3 ~ "Moderate Negative",
-      TRUE ~ "High Negative"
-    )
+    BTC_Gold_Regime = classify_regime(Rolling_Corr_BTC_Gold_90d),
+    BTC_Oil_Regime = classify_regime(Rolling_Corr_BTC_Oil_90d),
+    ETH_Gold_Regime = classify_regime(Rolling_Corr_ETH_Gold_90d),
+    ETH_Oil_Regime = classify_regime(Rolling_Corr_ETH_Oil_90d)
   )
 
-# Count observations in each regime
-regime_counts <- combined_data %>%
-  filter(!is.na(BTC_Gold_Regime)) %>%
-  count(BTC_Gold_Regime, name = "Count") %>%
-  mutate(Percentage = round(Count / sum(Count) * 100, 2))
+# Create comprehensive regime summary for all pairs
+regime_summary <- data.frame(
+  Pair = character(),
+  Regime = character(),
+  Count = numeric(),
+  Percentage = numeric(),
+  Mean_Correlation = numeric(),
+  stringsAsFactors = FALSE
+)
 
-cat("\nBTC-Gold Correlation Regimes:\n")
-print(regime_counts)
+pairs_list <- c("BTC_Gold", "BTC_Oil", "ETH_Gold", "ETH_Oil")
 
-# Identify periods of high correlation (potential risk-on periods)
-high_corr_periods <- combined_data %>%
-  filter(Rolling_Corr_BTC_Gold_90d > 0.3 | Rolling_Corr_BTC_Oil_90d > 0.3) %>%
-  select(Date, Rolling_Corr_BTC_Gold_90d, Rolling_Corr_BTC_Oil_90d) %>%
+for(pair_name in pairs_list) {
+  # Get the regime and correlation columns
+  regime_col <- paste0(pair_name, "_Regime")
+  corr_col <- paste0("Rolling_Corr_", pair_name, "_90d")
+  
+  # Create temporary dataframe for this pair
+  temp_data <- combined_data %>%
+    select(Date, Regime = all_of(regime_col), Correlation = all_of(corr_col)) %>%
+    filter(!is.na(Regime))
+  
+  pair_regime <- temp_data %>%
+    group_by(Regime) %>%
+    summarise(
+      Count = n(),
+      Mean_Correlation = mean(Correlation, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      Percentage = round(Count / sum(Count) * 100, 2),
+      Pair = pair_name
+    ) %>%
+    select(Pair, Regime, Count, Percentage, Mean_Correlation)
+  
+  regime_summary <- rbind(regime_summary, pair_regime)
+  
+  cat("\n", pair_name, "Correlation Regimes:\n")
+  print(pair_regime)
+}
+
+write.csv(regime_summary, file = "output/regime_summary_all_pairs.csv", row.names = FALSE)
+
+# Identify periods of high correlation (potential risk-on periods) for all pairs
+high_corr_periods_all <- combined_data %>%
+  filter(Rolling_Corr_BTC_Gold_90d > 0.3 | Rolling_Corr_BTC_Oil_90d > 0.3 |
+         Rolling_Corr_ETH_Gold_90d > 0.3 | Rolling_Corr_ETH_Oil_90d > 0.3) %>%
+  select(Date, Rolling_Corr_BTC_Gold_90d, Rolling_Corr_BTC_Oil_90d,
+         Rolling_Corr_ETH_Gold_90d, Rolling_Corr_ETH_Oil_90d) %>%
   arrange(Date)
 
-cat("\nPeriods with high positive correlation (>0.3):\n")
-cat("Total periods:", nrow(high_corr_periods), "\n")
-if(nrow(high_corr_periods) > 0) {
-  cat("Date range:", format(min(high_corr_periods$Date)), "to", format(max(high_corr_periods$Date)), "\n")
+cat("\n\nPeriods with high positive correlation (>0.3) for any pair:\n")
+cat("Total periods:", nrow(high_corr_periods_all), "\n")
+if(nrow(high_corr_periods_all) > 0) {
+  cat("Date range:", format(min(high_corr_periods_all$Date)), "to", 
+      format(max(high_corr_periods_all$Date)), "\n")
 }
 
 # ============================================================================
-# 6. Visualization: Multiple Window Comparison
+# 7. Visualization: Multiple Window Comparison
 # ============================================================================
 cat("\nCreating visualization for multiple window comparison...\n")
 
@@ -280,8 +418,10 @@ cat("\n=== Analysis Summary ===\n")
 cat("1. Rolling correlations calculated for windows: 30, 60, 90, 180 days\n")
 cat("2. Alternative correlation measures (Spearman) calculated\n")
 cat("3. Stationarity tests performed (ADF)\n")
-cat("4. Preliminary regime identification completed\n")
-cat("5. Summary statistics generated\n\n")
+cat("4. Correlation significance tests completed (H0: cor=0) with p-values\n")
+cat("5. Regime identification completed for all pairs (BTC-Gold, BTC-Oil, ETH-Gold, ETH-Oil)\n")
+cat("6. Threshold justification documented\n")
+cat("7. Summary statistics generated\n\n")
 
 cat("Initial analysis complete! Results saved to output/\n")
 
