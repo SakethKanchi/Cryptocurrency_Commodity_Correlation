@@ -34,4 +34,11 @@ Thumbs.db
 *.swo
 *~
 
+# Presentation files (personal use, not for GitHub)
+presentation.Rmd
+presentation.pptx
 presentation_speaker_notes.txt
+render_presentation.R
+PRESENTATION_CHECKLIST.md
+backup/presentation*.pptx
+backup/Project_Presentation.pptx
